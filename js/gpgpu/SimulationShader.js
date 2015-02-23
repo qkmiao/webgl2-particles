@@ -52,10 +52,10 @@ GPGPU.SimulationShader = function () {
 
       '  // Interaction with fingertips',
       '  for (int i = 0; i < 30; ++i) {',
-      '    vec3 posToCollider = (pos * 200.0) - colliders[i].xyz;',
+      '    vec3 posToCollider = pos - colliders[i].xyz;',
       '    float dist = colliders[i].w - length(posToCollider);',
       '    if (dist > 0.0) {',
-      '      pos += (normalize(posToCollider) * colliders[i].w) / 200.0;',
+      '      pos += normalize(posToCollider) * colliders[i].w;',
       '    }',
       '  }',
 
