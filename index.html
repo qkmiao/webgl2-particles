@@ -36,152 +36,73 @@
   <body>
 
     <script src="js/three.min.js"></script>
-    <script src="js/FBOUtils.js"></script>
+    <script src="js/GPGPU.js"></script>
     <script src="js/GeometryUtils.js"></script>
+    <script src="js/gpgpu/SimulationShader.js"></script>
 
-    <script src="js/leap-0.6.4.min.js"></script>
-
+    <script src="http://js.leapmotion.com/leap-0.6.4.min.js"></script>
     <script src="http://js.leapmotion.com/leap-plugins-0.1.6.1.js"></script>
     <script src="http://js.leapmotion.com/leap.rigged-hand-0.1.3.min.js"></script>
 
     <script src="helvetiker_bold.typeface.js"></script>
 
-    <script id="texture_vertex_simulation_shader" type="x-shader/x-vertex">
-        
-      varying vec2 vUv;
-
-      void main() {
-
-        vUv = vec2(uv.x, 1.0 - uv.y);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
-      }
-
-    </script>
-    <script id="texture_fragment_simulation_shader" type="x-shader/x-fragment">
-        
-      // simulation
-      varying vec2 vUv;
-      
-      uniform sampler2D tPositions;
-      uniform sampler2D origin;
-      
-      uniform float timer;
-
-      uniform vec4 colliders[30];
-
-      float rand(vec2 co){
-          return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-      }
-    
-      void main() {
-        vec3 pos = texture2D( tPositions, vUv ).xyz;
-
-        if ( rand(vUv + timer ) > 0.97 ) {
-          pos = texture2D( origin, vUv ).xyz;
-        } else {
-          float x = pos.x + timer;
-          float y = pos.y;
-          float z = pos.z;
-
-          pos.x += sin( y * 3.0 ) * cos( z * 11.0 ) * 0.005;
-          pos.y += sin( x * 5.0 ) * cos( z * 13.0 ) * 0.005;
-          pos.z += sin( x * 7.0 ) * cos( y * 17.0 ) * 0.005;
-        }
-
-        // Interaction with fingertips
-        for (int i = 0; i < 30; ++i) {
-          vec3 posToCollider = (pos * 200.0) - colliders[i].xyz;
-          float dist = colliders[i].w - length(posToCollider);
-          if (dist > 0.0) {
-            // TODO: What to do as a response?
-            pos += (normalize(posToCollider) * colliders[i].w) / 200.0;
-          }
-        }
-
-        // Write new position out
-        gl_FragColor = vec4(pos, 1.0);
-
-
-      }
-
-
-    </script>
-
-    <!-- zz85 - end simulations -->
-
+    <!-- WebGL 1 shaders -->
     <script id="vs-particles" type="x-shader/x-vertex">
-
       uniform sampler2D map;
-
       uniform float width;
       uniform float height;
-
       uniform float pointSize;
 
       varying vec2 vUv;
       varying vec4 vPosition;
 
       void main() {
-
         vUv = position.xy + vec2( 0.5 / width, 0.5 / height );
 
         vec3 color = texture2D( map, vUv ).rgb * 200.0;
 
         gl_PointSize = pointSize;
         gl_Position = projectionMatrix * modelViewMatrix * vec4( color, 1.0 );
-        // gl_Position = projectionMatrix * modelViewMatrix * vec4( position * 200.0, 1.0 );
-
       }
-
     </script>
 
     <script id="fs-particles" type="x-shader/x-fragment">
-
       uniform sampler2D map;
 
       varying vec2 vUv;
       varying vec4 vPosition;
 
       void main() {
-
         float depth = smoothstep( 2048.0, 1.0, gl_FragCoord.z / gl_FragCoord.w );
         gl_FragColor = vec4( (vec3(0.0, 0.1, 0.15) + (texture2D( map, vUv ).xyz * 0.3)), depth );
-
       }
-
     </script>
 
-    <script id="vs-copy" type="x-shader/x-vertex">
+    <!-- WebGL 2 shaders -->
+    <script id="vs-particles-2" type="x-shader/x-vertex">
+      uniform float pointSize;
 
-      uniform sampler2D map;
-      varying vec2 vUv;
+      varying vec3 vPosition;
 
       void main() {
-
-        vUv = position.xy;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
+        vPosition = position;
+        gl_PointSize = pointSize;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position * 200.0, 1.0 );
       }
-
     </script>
 
-    <script id="fs-copy" type="x-shader/x-fragment">
-
-      uniform sampler2D map;
-      varying vec2 vUv;
+    <script id="fs-particles-2" type="x-shader/x-fragment">
+      varying vec3 vPosition;
 
       void main() {
-
-        gl_FragColor = texture2D( map, vUv );
-
+        float depth = smoothstep( 2048.0, 1.0, gl_FragCoord.z / gl_FragCoord.w );
+        gl_FragColor = vec4( (vec3(0.0, 0.1, 0.15) + (vPosition * 0.3)), depth );
       }
-
     </script>
 
     <script>
 
-      var container;
+      var container, canvas, context;
 
       var scene, camera, light, renderer;
       var geometry, cube, mesh, material;
@@ -202,12 +123,22 @@
 
       var leapController = new Leap.Controller();
 
+      var isWebGL2 = false;
+
       function init() {
 
         container = document.createElement( 'div' );
         document.body.appendChild( container );
 
-        renderer = new THREE.WebGLRenderer( { antialias: false } );
+        canvas = document.createElement( 'canvas' );
+        // Try creating a WebGL 2 context first
+        context = canvas.getContext( 'webgl2', { antialias: false } );
+        isWebGL2 = !!context;
+        if (isWebGL2) {
+          console.log("I can haz flag, so WebGL 2 is yes!")
+        }
+
+        renderer = new THREE.WebGLRenderer( { canvas: canvas, context: context } );
         renderer.setSize( window.innerWidth, window.innerHeight );
         renderer.sortObjects = false;
         container.appendChild( renderer.domElement );
@@ -221,18 +152,18 @@
         scene.add( camera );
 
         leapController
-        .use('handHold', {})
-        .use('handEntry', {})
-        .use('riggedHand', {
-          parent: scene,
-          camera: camera,
-          scale: 35.0,
-          offset: handOffset,
-          materialOptions: {
-            opacity: 1.0
-          }
-        })
-        .connect();
+          .use('handHold', {})
+          .use('handEntry', {})
+          .use('riggedHand', {
+            parent: scene,
+            camera: camera,
+            scale: 35.0,
+            offset: handOffset,
+            materialOptions: {
+              opacity: 1.0
+            }
+          })
+          .connect();
 
         var fingerMaterial = new THREE.MeshPhongMaterial({ color: 0x00DD22 });
         var fingerGeometry = new THREE.IcosahedronGeometry(fingertipSize, 2);
@@ -274,18 +205,14 @@
         //var width = 2048, height = 1024;
         var width = 1024, height = 1024;
 
-        if ( ! renderer.context.getExtension( 'OES_texture_float' ) ) {
-
+        if (!isWebGL2 && !renderer.context.getExtension('OES_texture_float')) {
           alert( 'OES_texture_float is not :(' );
-
         }
 
         // Start Creation of DataTexture
-        // Could it be simplified with THREE.FBOUtils.createTextureFromData(textureWidth, textureWidth, data); ?
-
         data = new Float32Array( width * height * 3 );
 
-        var textGeo = new THREE.TextGeometry( "WebGL 2", {
+        var textGeo = new THREE.TextGeometry( isWebGL2 ? "WebGL 2" : "WebGL", {
 
           size: 1.0,
           height: 0.25,
@@ -311,77 +238,76 @@
         points = THREE.GeometryUtils.randomPointsInGeometry( textGeo, data.length / 3 );
 
         for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
-
           data[ i ] = points[ j ].x;
           data[ i + 1 ] = points[ j ].y;
           data[ i + 2 ] = points[ j ].z;
-
         }
 
-        console.log( data.length / 3 );
+        if (isWebGL2) {
+          geometry = new THREE.BufferGeometry();
+          geometry.addAttribute( 'position', new THREE.BufferAttribute( data, 3 ) );
 
-        texture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
-        texture.minFilter = THREE.NearestFilter;
-        texture.magFilter = THREE.NearestFilter;
-        texture.needsUpdate = true;
+          material = new THREE.ShaderMaterial( {
+            uniforms: {
+              "pointSize": { type: "f", value: 1 }
+            },
+            vertexShader: document.getElementById( 'vs-particles-2' ).textContent,
+            fragmentShader: document.getElementById( 'fs-particles-2' ).textContent,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+            transparent: true
+          } );
 
-        // zz85 - fbo init
+        } else {
+          texture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
+          texture.minFilter = THREE.NearestFilter;
+          texture.magFilter = THREE.NearestFilter;
+          texture.needsUpdate = true;
 
-        rtTexturePos = new THREE.WebGLRenderTarget(width, height, {
-          wrapS:THREE.RepeatWrapping,
-          wrapT:THREE.RepeatWrapping,
-          minFilter: THREE.NearestFilter,
-          magFilter: THREE.NearestFilter,
-          format: THREE.RGBFormat,
-          type:THREE.FloatType,
-          stencilBuffer: false
-        });
+          // zz85 - fbo init
 
-        rtTexturePos2 = rtTexturePos.clone();
+          rtTexturePos = new THREE.WebGLRenderTarget(width, height, {
+            wrapS:THREE.RepeatWrapping,
+            wrapT:THREE.RepeatWrapping,
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            format: THREE.RGBFormat,
+            type:THREE.FloatType,
+            stencilBuffer: false
+          });
 
-        simulationShader = new THREE.ShaderMaterial({
+          rtTexturePos2 = rtTexturePos.clone();
 
-          uniforms: {
-            tPositions: { type: "t", value: texture },
-            origin: { type: "t", value: texture },
-            timer: { type: "f", value: 0 },
-            colliders: { type: "4fv", value: colliders },
-          },
+          gpgpu = new GPGPU( renderer );
+          simulationShader = new GPGPU.SimulationShader();
+          simulationShader.setOriginsTexture( texture );
+          simulationShader.setColliders( colliders );
 
-          vertexShader: document.getElementById('texture_vertex_simulation_shader').textContent,
-          fragmentShader:  document.getElementById('texture_fragment_simulation_shader').textContent
+          geometry = new THREE.Geometry();
 
-        });
+          for ( var i = 0, l = width * height; i < l; i ++ ) {
+            var vertex = new THREE.Vector3();
+            vertex.x = ( i % width ) / width ;
+            vertex.y = Math.floor( i / width ) / height;
+            geometry.vertices.push( vertex );
+          }
 
-        fboParticles = new THREE.FBOUtils( width, renderer, simulationShader );
-        fboParticles.renderToTexture(rtTexturePos, rtTexturePos2);
-
-        fboParticles.in = rtTexturePos;
-        fboParticles.out = rtTexturePos2;
-
-        geometry = new THREE.Geometry();
-
-        for ( var i = 0, l = width * height; i < l; i ++ ) {
-          var vertex = new THREE.Vector3();
-          vertex.x = ( i % width ) / width ;
-          vertex.y = Math.floor( i / width ) / height;
-          geometry.vertices.push( vertex );
+          material = new THREE.ShaderMaterial( {
+            uniforms: {
+              "map": { type: "t", value: rtTexturePos },
+              "width": { type: "f", value: width },
+              "height": { type: "f", value: height },
+              "pointSize": { type: "f", value: 1 }
+            },
+            vertexShader: document.getElementById( 'vs-particles' ).textContent,
+            fragmentShader: document.getElementById( 'fs-particles' ).textContent,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+            transparent: true
+          } );
         }
-
-        material = new THREE.ShaderMaterial( {
-          uniforms: {
-            "map": { type: "t", value: rtTexturePos },
-            "width": { type: "f", value: width },
-            "height": { type: "f", value: height },
-            "pointSize": { type: "f", value: 1 }
-          },
-          vertexShader: document.getElementById( 'vs-particles' ).textContent,
-          fragmentShader: document.getElementById( 'fs-particles' ).textContent,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          depthTest: true,
-          transparent: true
-        } );
 
         mesh = new THREE.PointCloud( geometry, material );
         scene.add( mesh );
@@ -443,29 +369,30 @@
         }
       }
 
+      var count = 0;
       function render() {
         requestAnimationFrame( render );
 
         updateHands();
 
-        timer += 0.01;
+        timer += 0.002;
 
-        /*camera.position.x = Math.sin(timer * 0.42) * 400.0;
-        camera.position.y = Math.cos(timer * 0.13) * 400.0;
-        camera.position.z = 800;
-        camera.lookAt( scene.position );*/
+        if (isWebGL2) {
 
-        simulationShader.uniforms.timer.value = timer;
+        } else {
+          // swap
+          simulationShader.setTimer( timer );
 
-        // swap
-        var tmp = fboParticles.in;
-        fboParticles.in = fboParticles.out;
-        fboParticles.out = tmp;
+          if ( count % 2 === 0 ) {
+            gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos ), rtTexturePos2 );
+            material.uniforms.map.value = rtTexturePos2;
+          } else {
+            gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos2 ), rtTexturePos );
+            material.uniforms.map.value = rtTexturePos;
+          }
+        }
 
-        simulationShader.uniforms.tPositions.value = fboParticles.in;
-        //simulationShader.uniforms.colliders.value = colliders;
-        fboParticles.simulate(fboParticles.out);
-        material.uniforms.map.value = fboParticles.out;
+        count ++;
 
         renderer.render( scene, camera );
       }
