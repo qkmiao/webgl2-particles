@@ -35,7 +35,7 @@
   </head>
   <body>
 
-    <script src="js/three.min.js"></script>
+    <script src="js/three.js"></script>
     <script src="js/GPGPU.js"></script>
     <script src="js/GeometryUtils.js"></script>
     <script src="js/gpgpu/SimulationShader.js"></script>
@@ -102,10 +102,10 @@
 
     <script>
 
-      var container, canvas, context;
+      var container, canvas, gl;
 
       var scene, camera, light, renderer;
-      var geometry, cube, mesh, material;
+      var geometry, geometry2, cube, mesh, material;
       var roomMesh;
 
       var data, texture, points;
@@ -132,13 +132,13 @@
 
         canvas = document.createElement( 'canvas' );
         // Try creating a WebGL 2 context first
-        context = canvas.getContext( 'webgl2', { antialias: false } );
-        isWebGL2 = !!context;
+        gl = canvas.getContext( 'webgl2', { antialias: false } );
+        isWebGL2 = !!gl;
         if (isWebGL2) {
           console.log("I can haz flag, so WebGL 2 is yes!")
         }
 
-        renderer = new THREE.WebGLRenderer( { canvas: canvas, context: context } );
+        renderer = new THREE.WebGLRenderer( { canvas: canvas, context: gl } );
         renderer.setSize( window.innerWidth, window.innerHeight );
         renderer.sortObjects = false;
         container.appendChild( renderer.domElement );
@@ -196,8 +196,6 @@
         }
 
         // Start Creation of DataTexture
-        data = new Float32Array( width * height * 3 );
-
         var textGeo = new THREE.TextGeometry( isWebGL2 ? "WebGL 2" : "WebGL", {
           size: 1.0,
           height: 0.25,
@@ -214,8 +212,8 @@
           (bounds.max.y - bounds.min.y) * -0.5,
           (bounds.max.z - bounds.min.z) * -0.5));
 
+        data = new Float32Array( width * height * 3 );
         points = THREE.GeometryUtils.randomPointsInGeometry( textGeo, data.length / 3 );
-
         for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
           data[ i ] = points[ j ].x;
           data[ i + 1 ] = points[ j ].y;
@@ -225,6 +223,7 @@
         if (isWebGL2) {
           geometry = new THREE.BufferGeometry();
           geometry.addAttribute( 'position', new THREE.BufferAttribute( data, 3 ) );
+          geometry2 = geometry.clone();
 
           material = new THREE.ShaderMaterial( {
             uniforms: {
@@ -238,6 +237,12 @@
             transparent: true
           } );
 
+          gpgpu = new GPGPU2( renderer );
+          simulationShader = new GPGPU.SimulationShader2( renderer );
+          simulationShader.setColliders( colliders );
+
+          mesh = new THREE.PointCloud( geometry, material );
+          scene.add( mesh );
         } else {
           texture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
           texture.minFilter = THREE.NearestFilter;
@@ -286,10 +291,10 @@
             depthTest: true,
             transparent: true
           } );
-        }
 
-        mesh = new THREE.PointCloud( geometry, material );
-        scene.add( mesh );
+          mesh = new THREE.PointCloud( geometry, material );
+          scene.add( mesh );
+        }
 
         leapController
           .use('handHold', {})
@@ -370,10 +375,22 @@
 
         timer += 0.002;
 
-        if (isWebGL2) {
+        // Ugly hack to make the particle mesh always draw last
+        scene.remove( mesh ); scene.add( mesh );
 
+        if (isWebGL2) {
+          simulationShader.setTimer( timer );
+
+          if ( count % 2 === 0 ) {
+            gpgpu.pass( simulationShader, geometry2, geometry );
+            mesh.geometry = geometry;
+          } else {
+            gpgpu.pass( simulationShader, geometry, geometry2 );
+            mesh.geometry = geometry2;
+          }
+
+          renderer.render( scene, camera );
         } else {
-          // swap
           simulationShader.setTimer( timer );
 
           if ( count % 2 === 0 ) {
@@ -386,9 +403,6 @@
         }
 
         count ++;
-
-        scene.remove( mesh );
-        scene.add( mesh );
 
         renderer.render( scene, camera );
       }
