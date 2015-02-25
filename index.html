@@ -105,7 +105,7 @@
       var container, canvas, gl;
 
       var scene, camera, light, renderer;
-      var geometry, geometry2, cube, mesh, material;
+      var geometry, geometry2, originGeometry, cube, mesh, material;
       var roomMesh;
 
       var data, texture, points;
@@ -188,8 +188,8 @@
 
         //
 
-        //var width = 2048, height = 1024;
         var width = 1024, height = 1024;
+        //var width = 512, height = 512;
 
         if (!isWebGL2 && !renderer.context.getExtension('OES_texture_float')) {
           alert( 'OES_texture_float is not :(' );
@@ -212,17 +212,19 @@
           (bounds.max.y - bounds.min.y) * -0.5,
           (bounds.max.z - bounds.min.z) * -0.5));
 
-        data = new Float32Array( width * height * 3 );
-        points = THREE.GeometryUtils.randomPointsInGeometry( textGeo, data.length / 3 );
-        for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
-          data[ i ] = points[ j ].x;
-          data[ i + 1 ] = points[ j ].y;
-          data[ i + 2 ] = points[ j ].z;
-        }
+        points = THREE.GeometryUtils.randomPointsInGeometry( textGeo, width * height );
 
         if (isWebGL2) {
+          data = new Float32Array( width * height * 4 );
+          for ( var i = 0, j = 0, l = data.length; i < l; i += 4, j += 1 ) {
+            data[ i ] = points[ j ].x;
+            data[ i + 1 ] = points[ j ].y;
+            data[ i + 2 ] = points[ j ].z;
+            data[ i + 3 ] = 1;
+          }
+
           geometry = new THREE.BufferGeometry();
-          geometry.addAttribute( 'position', new THREE.BufferAttribute( data, 3 ) );
+          geometry.addAttribute( 'position', new THREE.BufferAttribute( data, 4 ) );
           geometry2 = geometry.clone();
 
           material = new THREE.ShaderMaterial( {
@@ -239,11 +241,15 @@
 
           gpgpu = new GPGPU2( renderer );
           simulationShader = new GPGPU.SimulationShader2( renderer );
-          simulationShader.setColliders( colliders );
-
-          mesh = new THREE.PointCloud( geometry, material );
-          scene.add( mesh );
+          simulationShader.setOriginData(data);
         } else {
+          data = new Float32Array( width * height * 3 );
+          for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
+            data[ i ] = points[ j ].x;
+            data[ i + 1 ] = points[ j ].y;
+            data[ i + 2 ] = points[ j ].z;
+          }
+
           texture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
           texture.minFilter = THREE.NearestFilter;
           texture.magFilter = THREE.NearestFilter;
@@ -266,7 +272,6 @@
           gpgpu = new GPGPU( renderer );
           simulationShader = new GPGPU.SimulationShader();
           simulationShader.setOriginsTexture( texture );
-          simulationShader.setColliders( colliders );
 
           geometry = new THREE.Geometry();
 
@@ -291,10 +296,12 @@
             depthTest: true,
             transparent: true
           } );
-
-          mesh = new THREE.PointCloud( geometry, material );
-          scene.add( mesh );
         }
+
+        mesh = new THREE.PointCloud( geometry, material );
+        scene.add( mesh );
+
+        simulationShader.setColliders( colliders );
 
         leapController
           .use('handHold', {})
@@ -318,8 +325,6 @@
       }
 
       window.addEventListener( 'resize', onWindowResize, false );
-
-      var timer = 0;
 
       function fingerToCollider(i) {
         var finger = fingers[i];
@@ -367,6 +372,7 @@
         }
       }
 
+      var timer = 0;
       var count = 0;
       function render() {
         requestAnimationFrame( render );
@@ -374,13 +380,12 @@
         updateHands();
 
         timer += 0.002;
+        simulationShader.setTimer( timer );
 
         // Ugly hack to make the particle mesh always draw last
         scene.remove( mesh ); scene.add( mesh );
 
         if (isWebGL2) {
-          simulationShader.setTimer( timer );
-
           if ( count % 2 === 0 ) {
             gpgpu.pass( simulationShader, geometry2, geometry );
             mesh.geometry = geometry;
@@ -388,11 +393,7 @@
             gpgpu.pass( simulationShader, geometry, geometry2 );
             mesh.geometry = geometry2;
           }
-
-          renderer.render( scene, camera );
         } else {
-          simulationShader.setTimer( timer );
-
           if ( count % 2 === 0 ) {
             gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos ), rtTexturePos2 );
             material.uniforms.map.value = rtTexturePos2;

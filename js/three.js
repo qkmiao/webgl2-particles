@@ -8677,6 +8677,7 @@ THREE.BufferGeometry.prototype = {
 			}
 
 			var positions = this.attributes.position.array;
+			var stride = this.attributes.position.itemSize;
 
 			if ( positions ) {
 
@@ -8684,7 +8685,7 @@ THREE.BufferGeometry.prototype = {
 
 				var center = this.boundingSphere.center;
 
-				for ( var i = 0, il = positions.length; i < il; i += 3 ) {
+				for ( var i = 0, il = positions.length; i < il; i += stride ) {
 
 					vector.set( positions[ i ], positions[ i + 1 ], positions[ i + 2 ] );
 					box.expandByPoint( vector );
@@ -8698,7 +8699,7 @@ THREE.BufferGeometry.prototype = {
 
 				var maxRadiusSq = 0;
 
-				for ( var i = 0, il = positions.length; i < il; i += 3 ) {
+				for ( var i = 0, il = positions.length; i < il; i += stride ) {
 
 					vector.set( positions[ i ], positions[ i + 1 ], positions[ i + 2 ] );
 					maxRadiusSq = Math.max( maxRadiusSq, center.distanceToSquared( vector ) );
@@ -20087,10 +20088,10 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 				if ( offsets.length === 0 ) {
 
-					_gl.drawArrays( mode, 0, position.array.length / 3 );
+					_gl.drawArrays( mode, 0, position.array.length / position.itemSize );
 
 					_this.info.render.calls ++;
-					_this.info.render.points += position.array.length / 3;
+					_this.info.render.points += position.array.length / position.itemSize;
 
 				} else {
 

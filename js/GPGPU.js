@@ -38,7 +38,7 @@ var GPGPU2 = function ( renderer ) {
       shader.bind();
       gl.enableVertexAttribArray( shader.attributes.position );
       gl.bindBuffer(gl.ARRAY_BUFFER, sourceAttrib.buffer);
-      gl.vertexAttribPointer( shader.attributes.position, 3, gl.FLOAT, false, 12, 0 );
+      gl.vertexAttribPointer( shader.attributes.position, 4, gl.FLOAT, false, 16, 0 );
 
       gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback);
       gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, target.attributes['position'].buffer);

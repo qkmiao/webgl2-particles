@@ -109,8 +109,9 @@ GPGPU.SimulationShader2 = function (renderer) {
   var gl = renderer.context;
 
   var attributes = {
-    position: 0
-  };;
+    position: 0,
+    origin: 1
+  };
 
   function createProgram () {
     var program = gl.createProgram();
@@ -121,7 +122,8 @@ GPGPU.SimulationShader2 = function (renderer) {
     gl.shaderSource( vertexShader, [
       'precision ' + renderer.getPrecision() + ' float;',
 
-      'attribute vec3 position;',
+      'attribute vec4 position;',
+      'attribute vec4 origin;',
 
       'uniform float timer;',
 
@@ -132,10 +134,10 @@ GPGPU.SimulationShader2 = function (renderer) {
       '}',
 
       'void main() {',
-      '  vec3 pos = position;',
+      '  vec4 pos = position;',
 
       '  if ( rand(position.xy + timer) > 0.97 ) {',
-      '    pos = vec3(0, 0, 0); //texture2D( origin, vUv ).xyz;',
+      '    pos = origin; //texture2D( origin, vUv ).xyz;',
       '  } else {',
       '    float x = pos.x + timer;',
       '    float y = pos.y;',
@@ -148,15 +150,15 @@ GPGPU.SimulationShader2 = function (renderer) {
 
       '  // Interaction with fingertips',
       '  for (int i = 0; i < 30; ++i) {',
-      '    vec3 posToCollider = pos - colliders[i].xyz;',
+      '    vec3 posToCollider = pos.xyz - colliders[i].xyz;',
       '    float dist = colliders[i].w - length(posToCollider);',
       '    if (dist > 0.0) {',
-      '      pos += normalize(posToCollider) * colliders[i].w;',
+      '      pos += vec4(normalize(posToCollider) * colliders[i].w, 0.0);',
       '    }',
       '  }',
 
       '  // Write new position out',
-      '  gl_Position = vec4(pos, 1.0);',
+      '  gl_Position = pos;',
       '}'
     ].join( '\n' ) );
 
@@ -169,7 +171,18 @@ GPGPU.SimulationShader2 = function (renderer) {
     ].join( '\n' ) );
 
     gl.compileShader( vertexShader );
+    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+      console.error("Shader failed to compile", gl.getShaderInfoLog( vertexShader ));
+      gl.deleteProgram(program);
+      return null;
+    }
+
     gl.compileShader( fragmentShader );
+    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+      console.error("Shader failed to compile", gl.getShaderInfoLog( fragmentShader ));
+      gl.deleteProgram(program);
+      return null;
+    }
 
     gl.attachShader( program, vertexShader );
     gl.attachShader( program, fragmentShader );
@@ -177,13 +190,16 @@ GPGPU.SimulationShader2 = function (renderer) {
     gl.deleteShader(vertexShader);
     gl.deleteShader(fragmentShader);
 
-    gl.bindAttribLocation( program, 0, 'position' );
+    for (var i in attributes) {
+      gl.bindAttribLocation( program, attributes[i], i );
+    }
+
     gl.transformFeedbackVaryings( program, ["gl_Position"], gl.SEPARATE_ATTRIBS );
 
     gl.linkProgram( program );
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error("Shader program failed to link");
+      console.error("Shader program failed to link", gl.getProgramInfoLog( program ));
       gl.deleteProgram(program);
       return null;
     }
@@ -208,6 +224,8 @@ GPGPU.SimulationShader2 = function (renderer) {
   var timerValue = 0;
   var collidersValue = null;
 
+  var originBuffer = gl.createBuffer();
+
   return {
     program: program,
 
@@ -217,6 +235,10 @@ GPGPU.SimulationShader2 = function (renderer) {
       gl.useProgram(program);
       gl.uniform1f(uniforms.timer, timer);
       gl.uniform4fv(uniforms.colliders, collidersValue);
+
+      gl.enableVertexAttribArray( attributes.origin );
+      gl.bindBuffer(gl.ARRAY_BUFFER, originBuffer);
+      gl.vertexAttribPointer( attributes.origin, 4, gl.FLOAT, false, 16, 0 );
     },
 
     setColliders: function ( colliders ) {
@@ -225,6 +247,11 @@ GPGPU.SimulationShader2 = function (renderer) {
 
     setTimer: function ( timer ) {
       timerValue = timer;
+    },
+
+    setOriginData: function( data ) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, originBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
     }
 
   }
