@@ -42,13 +42,13 @@ var GPGPU2 = function ( renderer ) {
 
       gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback);
       gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, target.attributes['position'].buffer);
-      gl.enable(gl.RASTERIZER_DISCARD);
+      //gl.enable(gl.RASTERIZER_DISCARD);
       gl.beginTransformFeedback(gl.POINTS);
 
       gl.drawArrays(gl.POINTS, 0, sourceAttrib.length / sourceAttrib.itemSize);
 
       gl.endTransformFeedback();
-      gl.disable(gl.RASTERIZER_DISCARD);
+     // gl.disable(gl.RASTERIZER_DISCARD);
       //gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, 0);
     }
   };
