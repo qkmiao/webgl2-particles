@@ -2,6 +2,37 @@
  * @author mrdoob / http://www.mrdoob.com
  */
 
+function simulationCommon(maxColliders) {
+  return [
+    'uniform float timer;',
+    'uniform vec4 colliders[' + maxColliders + '];',
+
+    'float rand(vec2 co){',
+    '  return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);',
+    '}',
+
+    'vec3 runSimulation(vec3 pos) {',
+    '  float x = pos.x + timer;',
+    '  float y = pos.y;',
+    '  float z = pos.z;',
+
+    '  pos.x += sin( y * 3.0 ) * cos( z * 11.0 ) * 0.005;',
+    '  pos.y += sin( x * 5.0 ) * cos( z * 13.0 ) * 0.005;',
+    '  pos.z += sin( x * 7.0 ) * cos( y * 17.0 ) * 0.005;',
+
+    '  // Interaction with fingertips',
+    '  for (int i = 0; i < ' + maxColliders + '; ++i) {',
+    '    vec3 posToCollider = pos - colliders[i].xyz;',
+    '    float dist = colliders[i].w - length(posToCollider);',
+    '    if (dist > 0.0) {',
+    '      pos += normalize(posToCollider) * colliders[i].w;',
+    '    }',
+    '  }',
+    '  return pos;',
+    '}',
+  ].join('\n');
+}
+
 GPGPU.SimulationShader = function (maxColliders) {
 
   if (!maxColliders) maxColliders = 8;
@@ -29,13 +60,7 @@ GPGPU.SimulationShader = function (maxColliders) {
       'uniform sampler2D tPositions;',
       'uniform sampler2D origin;',
 
-      'uniform float timer;',
-
-      'uniform vec4 colliders[' + maxFingers + '];',
-
-      'float rand(vec2 co){',
-      '    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);',
-      '}',
+      simulationCommon(maxColliders),
 
       'void main() {',
       '  vec3 pos = texture2D( tPositions, vUv ).xyz;',
@@ -43,22 +68,7 @@ GPGPU.SimulationShader = function (maxColliders) {
       '  if ( rand(vUv + timer ) > 0.97 ) {',
       '    pos = texture2D( origin, vUv ).xyz;',
       '  } else {',
-      '    float x = pos.x + timer;',
-      '    float y = pos.y;',
-      '    float z = pos.z;',
-
-      '    pos.x += sin( y * 3.0 ) * cos( z * 11.0 ) * 0.005;',
-      '    pos.y += sin( x * 5.0 ) * cos( z * 13.0 ) * 0.005;',
-      '    pos.z += sin( x * 7.0 ) * cos( y * 17.0 ) * 0.005;',
-      '  }',
-
-      '  // Interaction with fingertips',
-      '  for (int i = 0; i < ' + maxColliders + '; ++i) {',
-      '    vec3 posToCollider = pos - colliders[i].xyz;',
-      '    float dist = colliders[i].w - length(posToCollider);',
-      '    if (dist > 0.0) {',
-      '      pos += normalize(posToCollider) * colliders[i].w;',
-      '    }',
+      '    pos = runSimulation(pos);',
       '  }',
 
       '  // Write new position out',
@@ -117,7 +127,7 @@ GPGPU.SimulationShader2 = function (renderer, maxColliders) {
   };
 
   function createProgram () {
-    var program = gl.createProgram();
+    
 
     var vertexShader = gl.createShader( gl.VERTEX_SHADER );
     var fragmentShader = gl.createShader( gl.FRAGMENT_SHADER );
@@ -128,40 +138,19 @@ GPGPU.SimulationShader2 = function (renderer, maxColliders) {
       'attribute vec4 position;',
       'attribute vec4 origin;',
 
-      'uniform float timer;',
-
-      'uniform vec4 colliders[' + maxColliders + '];',
-
-      'float rand(vec2 co){',
-      '    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);',
-      '}',
+      simulationCommon(maxColliders),
 
       'void main() {',
-      '  vec4 pos = position;',
+      '  vec3 pos = position.xyz;',
 
       '  if ( rand(position.xy + timer) > 0.97 ) {',
-      '    pos = origin; //texture2D( origin, vUv ).xyz;',
+      '    pos = origin.xyz;',
       '  } else {',
-      '    float x = pos.x + timer;',
-      '    float y = pos.y;',
-      '    float z = pos.z;',
-
-      '    pos.x += sin( y * 3.0 ) * cos( z * 11.0 ) * 0.005;',
-      '    pos.y += sin( x * 5.0 ) * cos( z * 13.0 ) * 0.005;',
-      '    pos.z += sin( x * 7.0 ) * cos( y * 17.0 ) * 0.005;',
-      '  }',
-
-      '  // Interaction with fingertips',
-      '  for (int i = 0; i < ' + maxColliders + '; ++i) {',
-      '    vec3 posToCollider = pos.xyz - colliders[i].xyz;',
-      '    float dist = colliders[i].w - length(posToCollider);',
-      '    if (dist > 0.0) {',
-      '      pos += vec4(normalize(posToCollider) * colliders[i].w, 0.0);',
-      '    }',
+      '    pos = runSimulation(pos);',
       '  }',
 
       '  // Write new position out',
-      '  gl_Position = pos;',
+      '  gl_Position = vec4(pos, 1.0);',
       '}'
     ].join( '\n' ) );
 
@@ -176,22 +165,22 @@ GPGPU.SimulationShader2 = function (renderer, maxColliders) {
     gl.compileShader( vertexShader );
     if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
       console.error("Shader failed to compile", gl.getShaderInfoLog( vertexShader ));
-      gl.deleteProgram(program);
       return null;
     }
 
     gl.compileShader( fragmentShader );
     if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
       console.error("Shader failed to compile", gl.getShaderInfoLog( fragmentShader ));
-      gl.deleteProgram(program);
       return null;
     }
+
+    var program = gl.createProgram();
 
     gl.attachShader( program, vertexShader );
     gl.attachShader( program, fragmentShader );
 
-    gl.deleteShader(vertexShader);
-    gl.deleteShader(fragmentShader);
+    gl.deleteShader( vertexShader );
+    gl.deleteShader( fragmentShader );
 
     for (var i in attributes) {
       gl.bindAttribLocation( program, attributes[i], i );
