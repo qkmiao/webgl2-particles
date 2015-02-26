@@ -2,7 +2,9 @@
  * @author mrdoob / http://www.mrdoob.com
  */
 
-GPGPU.SimulationShader = function () {
+GPGPU.SimulationShader = function (maxColliders) {
+
+  if (!maxColliders) maxColliders = 8;
 
   var material = new THREE.ShaderMaterial( {
     uniforms: {
@@ -29,7 +31,7 @@ GPGPU.SimulationShader = function () {
 
       'uniform float timer;',
 
-      'uniform vec4 colliders[30];',
+      'uniform vec4 colliders[' + maxFingers + '];',
 
       'float rand(vec2 co){',
       '    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);',
@@ -51,7 +53,7 @@ GPGPU.SimulationShader = function () {
       '  }',
 
       '  // Interaction with fingertips',
-      '  for (int i = 0; i < 30; ++i) {',
+      '  for (int i = 0; i < ' + maxColliders + '; ++i) {',
       '    vec3 posToCollider = pos - colliders[i].xyz;',
       '    float dist = colliders[i].w - length(posToCollider);',
       '    if (dist > 0.0) {',
@@ -105,8 +107,9 @@ GPGPU.SimulationShader = function () {
 
 };
 
-GPGPU.SimulationShader2 = function (renderer) {
+GPGPU.SimulationShader2 = function (renderer, maxColliders) {
   var gl = renderer.context;
+  if (!maxColliders) maxColliders = 8;
 
   var attributes = {
     position: 0,
@@ -127,7 +130,7 @@ GPGPU.SimulationShader2 = function (renderer) {
 
       'uniform float timer;',
 
-      'uniform vec4 colliders[30];',
+      'uniform vec4 colliders[' + maxColliders + '];',
 
       'float rand(vec2 co){',
       '    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);',
@@ -149,7 +152,7 @@ GPGPU.SimulationShader2 = function (renderer) {
       '  }',
 
       '  // Interaction with fingertips',
-      '  for (int i = 0; i < 30; ++i) {',
+      '  for (int i = 0; i < ' + maxColliders + '; ++i) {',
       '    vec3 posToCollider = pos.xyz - colliders[i].xyz;',
       '    float dist = colliders[i].w - length(posToCollider);',
       '    if (dist > 0.0) {',

@@ -101,7 +101,6 @@
     </script>
 
     <script>
-
       var container, canvas, gl;
 
       var scene, camera, light, renderer;
@@ -114,9 +113,9 @@
 
       var fboParticles, rtTexturePos, rtTexturePos2, simulationShader;
 
-      var maxFingers = 30;
+      var maxFingers = 42;
       var fingers = [];
-      var fingertipSize = 0.125;
+      var fingertipSize = 0.12;
       var handOffset = new THREE.Vector3(0,-2.5,-0.5);
       var colliders = new Float32Array(maxFingers * 4);
       var showColliders = false;
@@ -125,17 +124,44 @@
 
       var isWebGL2 = false;
 
-      function init() {
+      function getQueryString(name, defaultValue) {
+        var query = window.location.search.substring(1);
+        var vars = query.split("&");
+        for (var i = 0; i < vars.length; i++) {
+          var pair = vars[i].split("=");
+          if (pair[0] == name) {
+            return unescape(pair[1]);
+          }
+        }
+        return defaultValue;
+      }
 
+      function getQueryValue(name, defaultValue) {
+        var value = getQueryString(name, null);
+        if (value == null) {
+          return defaultValue;
+        }
+        return parseInt(value, 10);
+      }
+
+      function init() {
         container = document.createElement( 'div' );
         document.body.appendChild( container );
 
         canvas = document.createElement( 'canvas' );
-        // Try creating a WebGL 2 context first
-        gl = canvas.getContext( 'webgl2', { antialias: false } );
-        isWebGL2 = !!gl;
-        if (isWebGL2) {
-          console.log("I can haz flag, so WebGL 2 is yes!")
+
+        var tryGL2 = getQueryValue('webgl2', 1);
+
+        if (tryGL2) {
+          // Try creating a WebGL 2 context first
+          gl = canvas.getContext( 'webgl2', { antialias: false } );
+          if (!gl) {
+            gl = canvas.getContext( 'experiemental-webgl2', { antialias: false } );
+          }
+          isWebGL2 = !!gl;
+          if (isWebGL2) {
+            console.log("I can haz flag, so WebGL 2 is yes!")
+          }
         }
 
         renderer = new THREE.WebGLRenderer( { canvas: canvas, context: gl } );
@@ -151,8 +177,9 @@
         camera.lookAt( scene.position );
         scene.add( camera );
 
+        showColliders = getQueryValue('colliders', 0) != 0;
         var fingerMaterial = new THREE.MeshPhongMaterial({ color: 0x00DD22 });
-        var fingerGeometry = new THREE.IcosahedronGeometry(fingertipSize, 2);
+        var fingerGeometry = new THREE.IcosahedronGeometry(1, 2);
 
         for (var i = 0; i < maxFingers; ++i) {
           var finger = {
@@ -240,7 +267,7 @@
           } );
 
           gpgpu = new GPGPU2( renderer );
-          simulationShader = new GPGPU.SimulationShader2( renderer );
+          simulationShader = new GPGPU.SimulationShader2(renderer, maxFingers);
           simulationShader.setOriginData(data);
         } else {
           data = new Float32Array( width * height * 3 );
@@ -270,7 +297,7 @@
           rtTexturePos2 = rtTexturePos.clone();
 
           gpgpu = new GPGPU( renderer );
-          simulationShader = new GPGPU.SimulationShader();
+          simulationShader = new GPGPU.SimulationShader(maxFingers);
           simulationShader.setOriginsTexture( texture );
 
           geometry = new THREE.Geometry();
@@ -312,7 +339,7 @@
             scale: 0.2,
             offset: handOffset,
             materialOptions: {
-              opacity: 1.0
+              opacity: showColliders ? 0.5 : 1.0
             }
           })
           .connect();
@@ -326,25 +353,28 @@
 
       window.addEventListener( 'resize', onWindowResize, false );
 
-      function fingerToCollider(i) {
+      function fingerToCollider(i, size) {
         var finger = fingers[i];
         var o = i * 4;
         if (finger.active) {
           colliders[o] = finger.mesh.position.x;
           colliders[o+1] = finger.mesh.position.y;
           colliders[o+2] = finger.mesh.position.z;
-          colliders[o+3] = fingertipSize;
+          colliders[o+3] = size ? size : fingertipSize;
         } else {
           colliders[o+3] = -1;
         }
       }
 
-      function fingerFromBone(bone, fi) {
+      function fingerFromBone(bone, fi, size) {
+        if (fi >= fingers.length) return;
+        if (!size) { size = fingertipSize; }
         bone.updateMatrixWorld();
         fingers[fi].active = true;
         fingers[fi].mesh.visible = showColliders;
         fingers[fi].mesh.position.setFromMatrixPosition(bone.matrixWorld);
-        fingerToCollider(fi);
+        fingers[fi].mesh.scale.set(size, size, size);
+        fingerToCollider(fi, size);
       }
 
       function updateHands() {
@@ -356,11 +386,14 @@
             var hand = frame.hands[i];
             var handMesh = hand.data('riggedHand.mesh');
 
+            fingerFromBone(handMesh, fi++, fingertipSize * 2.0);
+
             for (var j = 0; j < handMesh.fingers.length; ++j) {
               var meshFinger = handMesh.fingers[j];
-              fingerFromBone(meshFinger.tip, fi++);
+              fingerFromBone(meshFinger.tip, fi++, fingertipSize * 0.80);
+              fingerFromBone(meshFinger.dip, fi++, fingertipSize * 0.90);
               fingerFromBone(meshFinger.pip, fi++);
-              fingerFromBone(meshFinger.dip, fi++);
+              fingerFromBone(meshFinger, fi++);
             }
           }
         }
