@@ -115,7 +115,7 @@
 
       var maxFingers = 42;
       var fingers = [];
-      var fingertipSize = 0.12;
+      var fingertipSize = 0.18;
       var handOffset = new THREE.Vector3(0,-2.5,-0.5);
       var colliders = new Float32Array(maxFingers * 4);
       var showColliders = false;
@@ -208,7 +208,7 @@
           new THREE.MeshBasicMaterial({ map: backImage, side: THREE.BackSide })
         ];
         var roomMaterial = new THREE.MeshFaceMaterial( roomMaterialArray );
-        var roomGeometry = new THREE.BoxGeometry( 10.24, 5.12, 5.12 );
+        var roomGeometry = new THREE.BoxGeometry( 10.24, 4, 5.12 );
         roomMesh = new THREE.Mesh( roomGeometry, roomMaterial );
         roomMesh.doubleSided = true;
         scene.add( roomMesh );
@@ -241,15 +241,15 @@
 
         points = THREE.GeometryUtils.randomPointsInGeometry( textGeo, width * height );
 
-        if (isWebGL2) {
-          data = new Float32Array( width * height * 4 );
-          for ( var i = 0, j = 0, l = data.length; i < l; i += 4, j += 1 ) {
-            data[ i ] = points[ j ].x;
-            data[ i + 1 ] = points[ j ].y;
-            data[ i + 2 ] = points[ j ].z;
-            data[ i + 3 ] = 1;
-          }
+        data = new Float32Array( width * height * 4 );
+        for ( var i = 0, j = 0, l = data.length; i < l; i += 4, j += 1 ) {
+          data[ i ] = points[ j ].x;
+          data[ i + 1 ] = points[ j ].y;
+          data[ i + 2 ] = points[ j ].z;
+          data[ i + 3 ] = 0.0;
+        }
 
+        if (isWebGL2) {
           geometry = new THREE.BufferGeometry();
           geometry.addAttribute( 'position', new THREE.BufferAttribute( data, 4 ) );
           geometry2 = geometry.clone();
@@ -270,14 +270,7 @@
           simulationShader = new GPGPU.SimulationShader2(renderer, maxFingers);
           simulationShader.setOriginData(data);
         } else {
-          data = new Float32Array( width * height * 3 );
-          for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
-            data[ i ] = points[ j ].x;
-            data[ i + 1 ] = points[ j ].y;
-            data[ i + 2 ] = points[ j ].z;
-          }
-
-          texture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
+          texture = new THREE.DataTexture( data, width, height, THREE.RGBAFormat, THREE.FloatType );
           texture.minFilter = THREE.NearestFilter;
           texture.magFilter = THREE.NearestFilter;
           texture.needsUpdate = true;
@@ -289,7 +282,7 @@
             wrapT:THREE.RepeatWrapping,
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
-            format: THREE.RGBFormat,
+            format: THREE.RGBAFormat,
             type:THREE.FloatType,
             stencilBuffer: false
           });
@@ -390,10 +383,10 @@
 
             for (var j = 0; j < handMesh.fingers.length; ++j) {
               var meshFinger = handMesh.fingers[j];
-              fingerFromBone(meshFinger.tip, fi++, fingertipSize * 0.80);
-              fingerFromBone(meshFinger.dip, fi++, fingertipSize * 0.90);
+              fingerFromBone(meshFinger.tip, fi++, fingertipSize * 0.8);
+              fingerFromBone(meshFinger.dip, fi++, fingertipSize * 0.9);
               fingerFromBone(meshFinger.pip, fi++);
-              fingerFromBone(meshFinger, fi++);
+              fingerFromBone(meshFinger, fi++, fingertipSize * 1.1);
             }
           }
         }
