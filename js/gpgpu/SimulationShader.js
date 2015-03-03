@@ -22,7 +22,7 @@ function simulationCommon(maxColliders) {
     '    pos.z += sin( x * 7.0 ) * cos( y * 17.0 ) * 0.005;',
     '  } else {',
     '    pos.y -= pos.w;',
-    '    pos.w += 0.01;',
+    '    pos.w += 0.005;',
     '    if (pos.y < -2.0) {',
     '      pos.y += pos.w;',
     '      pos.w *= -0.3;',
@@ -35,7 +35,7 @@ function simulationCommon(maxColliders) {
     '    float dist = colliders[i].w - length(posToCollider);',
     '    if (dist > 0.0) {',
     '      pos += vec4(normalize(posToCollider) * colliders[i].w, 0.0);',
-    '      pos.w = 0.075;', // Enable Gravity
+    '      pos.w = 0.01;', // Enable Gravity
     '    }',
     '  }',
     '  return pos;',
