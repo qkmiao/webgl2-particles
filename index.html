@@ -101,29 +101,6 @@
     </script>
 
     <script>
-      var container, canvas, gl;
-
-      var scene, camera, light, renderer;
-      var geometry, geometry2, originGeometry, cube, mesh, material;
-      var roomMesh;
-
-      var data, texture, points;
-
-      var controls;
-
-      var fboParticles, rtTexturePos, rtTexturePos2, simulationShader;
-
-      var maxFingers = 42;
-      var fingers = [];
-      var fingertipSize = 0.18;
-      var handOffset = new THREE.Vector3(0,-2.5,-0.5);
-      var colliders = new Float32Array(maxFingers * 4);
-      var showColliders = false;
-
-      var leapController = new Leap.Controller();
-
-      var isWebGL2 = false;
-
       function getQueryString(name, defaultValue) {
         var query = window.location.search.substring(1);
         var vars = query.split("&");
@@ -143,6 +120,33 @@
         }
         return parseInt(value, 10);
       }
+
+      var container, canvas, gl;
+
+      var scene, camera, light, renderer;
+      var geometry, geometry2, originGeometry, cube, mesh, material;
+      var roomMesh;
+
+      var data, texture, points;
+
+      var controls;
+
+      var fboParticles, rtTexturePos, rtTexturePos2, simulationShader;
+
+      var width = getQueryValue('width', 2048);
+      var height = getQueryValue('height', 1024);
+      var pointSize = getQueryValue('pointSize', 1);
+
+      var maxFingers = 42;
+      var fingers = [];
+      var fingertipSize = 0.18;
+      var handOffset = new THREE.Vector3(0,-2.5, 0.0);
+      var colliders = new Float32Array(maxFingers * 4);
+      var showColliders = false;
+
+      var leapController = new Leap.Controller();
+
+      var isWebGL2 = false;
 
       function init() {
         container = document.createElement( 'div' );
@@ -215,9 +219,6 @@
 
         //
 
-        var width = 1024, height = 1024;
-        //var width = 512, height = 512;
-
         if (!isWebGL2 && !renderer.context.getExtension('OES_texture_float')) {
           alert( 'OES_texture_float is not :(' );
         }
@@ -256,7 +257,7 @@
 
           material = new THREE.ShaderMaterial( {
             uniforms: {
-              "pointSize": { type: "f", value: 1 }
+              "pointSize": { type: "f", value: pointSize }
             },
             vertexShader: document.getElementById( 'vs-particles-2' ).textContent,
             fragmentShader: document.getElementById( 'fs-particles-2' ).textContent,
@@ -307,7 +308,7 @@
               "map": { type: "t", value: rtTexturePos },
               "width": { type: "f", value: width },
               "height": { type: "f", value: height },
-              "pointSize": { type: "f", value: 1 }
+              "pointSize": { type: "f", value: pointSize }
             },
             vertexShader: document.getElementById( 'vs-particles' ).textContent,
             fragmentShader: document.getElementById( 'fs-particles' ).textContent,
@@ -414,18 +415,18 @@
         if (isWebGL2) {
           if ( count % 2 === 0 ) {
             gpgpu.pass( simulationShader, geometry2, geometry );
-            mesh.geometry = geometry;
+            mesh.geometry = geometry2;
           } else {
             gpgpu.pass( simulationShader, geometry, geometry2 );
-            mesh.geometry = geometry2;
+            mesh.geometry = geometry;
           }
         } else {
           if ( count % 2 === 0 ) {
             gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos ), rtTexturePos2 );
-            material.uniforms.map.value = rtTexturePos2;
+            material.uniforms.map.value = rtTexturePos;
           } else {
             gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos2 ), rtTexturePos );
-            material.uniforms.map.value = rtTexturePos;
+            material.uniforms.map.value = rtTexturePos2;
           }
         }
 
