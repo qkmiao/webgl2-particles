@@ -74,7 +74,7 @@
 
       void main() {
         float depth = smoothstep( 10.24, 1.0, gl_FragCoord.z / gl_FragCoord.w );
-        gl_FragColor = vec4( (vec3(0.0, 0.1, 0.15) + (texture2D( map, vUv ).xyz * 0.3)), depth );
+        gl_FragColor = vec4( (vec3(0.0, 0.03, 0.05) + (texture2D( map, vUv ).xyz * 0.25)), depth );
       }
     </script>
 
@@ -96,7 +96,7 @@
 
       void main() {
         float depth = smoothstep( 10.24, 1.0, gl_FragCoord.z / gl_FragCoord.w );
-        gl_FragColor = vec4( (vec3(0.0, 0.1, 0.15) + (vPosition * 0.3)), depth );
+        gl_FragColor = vec4( (vec3(0.0, 0.03, 0.05) + (vPosition * 0.25)), depth );
       }
     </script>
 
