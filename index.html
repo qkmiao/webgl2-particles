@@ -160,7 +160,7 @@
           // Try creating a WebGL 2 context first
           gl = canvas.getContext( 'webgl2', { antialias: false } );
           if (!gl) {
-            gl = canvas.getContext( 'experiemental-webgl2', { antialias: false } );
+            gl = canvas.getContext( 'experimental-webgl2', { antialias: false } );
           }
           isWebGL2 = !!gl;
           if (isWebGL2) {
