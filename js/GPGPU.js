@@ -49,6 +49,11 @@ var GPGPU2 = function ( renderer ) {
 
       gl.endTransformFeedback();
       gl.disable(gl.RASTERIZER_DISCARD);
+
+      // Unbind the transform feedback buffer so subsequent attempts
+      // to bind it to ARRAY_BUFFER work.
+      gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
+
       //gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, 0);
     }
   };
