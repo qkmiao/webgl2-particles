@@ -35,6 +35,7 @@
   </head>
   <body>
 
+    <script type="text/javascript" src="fpsmeter-common.js"></script>
     <script src="js/three.js"></script>
     <script src="js/GPGPU.js"></script>
     <script src="js/GeometryUtils.js"></script>
@@ -147,6 +148,7 @@
       var leapController = new Leap.Controller();
 
       var isWebGL2 = false;
+      var fps;
 
       function init() {
         container = document.createElement( 'div' );
@@ -433,10 +435,12 @@
         count ++;
 
         renderer.render( scene, camera );
+        fps.refresh();
       }
 
       init();
 
+      fps = new fpsmeter();
       render();
 
     </script>
